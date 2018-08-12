@@ -11,10 +11,25 @@ screen, using WebKit.
 ## How to build
 
 ```bash
-mkdir build
-cd build
-cmake ..
-make
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
+```
+
+## How to install
+
+After the executable has been compiled, you can install it to your system like
+this:
+
+```bash
+$ sudo make install
+```
+
+## How to use
+
+```bash
+$ mdview filename.md
 ```
 
 [Markdown]: https://en.wikipedia.org/wiki/Markdown
