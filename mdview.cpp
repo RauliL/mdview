@@ -51,6 +51,7 @@ MainWindow::MainWindow()
   set_border_width(0);
   set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
   add(*m_web_view_widget);
+  maximize();
   show_all();
 }
 
