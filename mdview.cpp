@@ -23,6 +23,8 @@ class MainWindow : public Gtk::Window
 public:
   explicit MainWindow();
 
+  void show_file(const std::string& path);
+  void set_markdown(const std::string& markdown);
   void set_html(const std::string& html);
 
 protected:
@@ -47,12 +49,58 @@ MainWindow::MainWindow()
     static_cast<void*>(this)
   );
 
-  set_title("MDView");
+  set_title("mdview");
   set_border_width(0);
   set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
   add(*m_web_view_widget);
   maximize();
   show_all();
+}
+
+void MainWindow::show_file(const std::string& path)
+{
+  std::ifstream input(path);
+  std::stringstream buffer;
+
+  if (!input.good())
+  {
+    std::cerr << "Unable to open `" << path << "' for reading." << std::endl;
+    std::exit(EXIT_FAILURE);
+    return;
+  }
+  buffer << input.rdbuf();
+  input.close();
+  set_markdown(buffer.str());
+  set_title(path + " - mdview");
+}
+
+void MainWindow::set_markdown(const std::string& markdown)
+{
+  auto renderer = hoedown_html_renderer_new(HOEDOWN_HTML_ESCAPE, 0);
+  auto document = hoedown_document_new(
+    renderer,
+    HOEDOWN_EXT_FENCED_CODE,
+    16
+  );
+  auto mdbuffer = hoedown_buffer_new(16);
+  std::string result;
+
+  hoedown_document_render(
+    document,
+    mdbuffer,
+    reinterpret_cast<const uint8_t*>(markdown.c_str()),
+    markdown.length()
+  );
+  result.assign(
+    reinterpret_cast<const char*>(mdbuffer->data),
+    mdbuffer->size
+  );
+
+  hoedown_buffer_free(mdbuffer);
+  hoedown_document_free(document);
+  hoedown_html_renderer_free(renderer);
+
+  set_html(result);
 }
 
 void MainWindow::set_html(const std::string& html)
@@ -76,51 +124,6 @@ bool MainWindow::on_key_press_event(GdkEventKey* event)
   }
 
   return Gtk::Window::on_key_press_event(event);
-}
-
-static bool parse_file(const std::string& filename, std::string& result)
-{
-  std::ifstream input(filename);
-  std::stringstream buffer;
-  hoedown_renderer* renderer;
-  hoedown_document* document;
-  hoedown_buffer* mdbuffer;
-
-  if (!input.good())
-  {
-    std::cerr << "Unable to open `"
-              << filename
-              << "' for reading."
-              << std::endl;
-
-    return false;
-  }
-  buffer << input.rdbuf();
-  input.close();
-  renderer = hoedown_html_renderer_new(HOEDOWN_HTML_ESCAPE, 0);
-  document = hoedown_document_new(
-    renderer,
-    HOEDOWN_EXT_FENCED_CODE,
-    16
-  );
-  mdbuffer = hoedown_buffer_new(16);
-  hoedown_document_render(
-    document,
-    mdbuffer,
-    reinterpret_cast<const uint8_t*>(buffer.str().c_str()),
-    buffer.str().length()
-  );
-
-  result.assign(
-    reinterpret_cast<const char*>(mdbuffer->data),
-    mdbuffer->size
-  );
-
-  hoedown_buffer_free(mdbuffer);
-  hoedown_document_free(document);
-  hoedown_html_renderer_free(renderer);
-
-  return true;
 }
 
 static void set_webkit_settings(WebKitSettings* settings)
@@ -161,12 +164,8 @@ static int on_command_line(
 
     return EXIT_FAILURE;
   }
-  else if (!parse_file(argv[1], result))
-  {
-    return EXIT_FAILURE;
-  }
   app->activate();
-  static_cast<MainWindow*>(app->get_active_window())->set_html(result);
+  static_cast<MainWindow*>(app->get_active_window())->show_file(argv[1]);
 
   return EXIT_SUCCESS;
 }
