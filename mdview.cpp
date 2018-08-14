@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #include <cstdlib>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 
@@ -26,10 +27,10 @@ static const int DEFAULT_WIDTH = 860;
 static const int DEFAULT_HEIGHT = 480;
 
 static void set_webkit_settings(WebKitSettings*);
-static void on_mouse_target_change(
+static gboolean on_decide_policy(
   WebKitWebView*,
-  WebKitHitTestResult*,
-  guint,
+  WebKitPolicyDecision*,
+  WebKitPolicyDecisionType,
   void*
 );
 
@@ -59,9 +60,9 @@ MainWindow::MainWindow()
 
   g_signal_connect(
     G_OBJECT(m_web_view),
-    "mouse-target-changed",
-    G_CALLBACK(on_mouse_target_change),
-    static_cast<void*>(this)
+    "decide-policy",
+    G_CALLBACK(on_decide_policy),
+    static_cast<void*>(gobj())
   );
 
   set_title("mdview");
@@ -148,20 +149,43 @@ static void set_webkit_settings(WebKitSettings* settings)
   webkit_settings_set_enable_plugins(settings, false);
 }
 
-static void on_mouse_target_change(WebKitWebView* web_view,
-                                   WebKitHitTestResult* hit_test,
-                                   guint modifiers,
-                                   void*)
+static gboolean on_decide_policy(WebKitWebView* web_view,
+                                 WebKitPolicyDecision* decision,
+                                 WebKitPolicyDecisionType decision_type,
+                                 void* data)
 {
-  auto context = webkit_hit_test_result_get_context(hit_test);
-
-  // Display hovered links in the console.
-  // TODO: Modify the web kit view so that clicked links open in system browser
-  // instead.
-  if ((context & WEBKIT_HIT_TEST_RESULT_CONTEXT_LINK))
+  switch (decision_type)
   {
-    std::cout << webkit_hit_test_result_get_link_uri(hit_test) << std::endl;
+    case WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION:
+    case WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION:
+      {
+        auto navigation_decision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
+        const auto uri = webkit_uri_request_get_uri(
+          webkit_navigation_action_get_request(
+            webkit_navigation_policy_decision_get_navigation_action(
+              navigation_decision
+            )
+          )
+        );
+
+        if (uri)
+        {
+          gtk_show_uri_on_window(
+            static_cast<GtkWindow*>(data),
+            uri,
+            static_cast<guint32>(std::time(nullptr)),
+            nullptr
+          );
+        }
+        webkit_policy_decision_ignore(decision);
+        break;
+      }
+
+    default:
+      return false;
   }
+
+  return true;
 }
 
 static int on_command_line(
