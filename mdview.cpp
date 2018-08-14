@@ -138,6 +138,35 @@ bool MainWindow::on_key_press_event(GdkEventKey* event)
   {
     std::exit(EXIT_SUCCESS);
   }
+  // Poor man's implementation of Vi keybindings.
+  else if (!(event->state & GDK_SHIFT_MASK) &&
+      !(event->state & GDK_CONTROL_MASK))
+  {
+    const gchar* script = nullptr;
+
+    if (event->keyval == GDK_KEY_j)
+    {
+      script = "window.scrollBy({ top: 100 });";
+    }
+    else if (event->keyval == GDK_KEY_k)
+    {
+      script = "window.scrollBy({ top: -100 });";
+    }
+    else if (event->keyval == GDK_KEY_h)
+    {
+      script = "window.scrollBy({ left: -100 });";
+    }
+    else if (event->keyval == GDK_KEY_l)
+    {
+      script = "window.scrollBy({ left: 100 });";
+    }
+    if (script)
+    {
+      webkit_web_view_run_javascript(m_web_view, script, nullptr, nullptr, nullptr);
+
+      return true;
+    }
+  }
 
   return Gtk::Window::on_key_press_event(event);
 }
@@ -145,7 +174,6 @@ bool MainWindow::on_key_press_event(GdkEventKey* event)
 static void set_webkit_settings(WebKitSettings* settings)
 {
   webkit_settings_set_enable_java(settings, false);
-  webkit_settings_set_enable_javascript(settings, false);
   webkit_settings_set_enable_plugins(settings, false);
 }
 
