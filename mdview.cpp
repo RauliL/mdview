@@ -221,16 +221,28 @@ static int on_command_line(
   Glib::RefPtr<Gtk::Application>& app
 )
 {
-  int argc = 0;
+  int argc;
   auto argv = command_line->get_arguments(argc);
-  std::string result;
+  Glib::OptionContext context;
+  Glib::OptionGroup gtk_group(gtk_get_option_group(true));
 
-  if (argc != 2)
+  context.add_group(gtk_group);
+
+  if (!context.parse(argc, argv))
+  {
+    std::exit(EXIT_FAILURE);
+  }
+  else if (argc < 2)
   {
     std::cerr << "No filename given." << std::endl;
-
-    return EXIT_FAILURE;
+    std::exit(EXIT_FAILURE);
   }
+  else if (argc > 2)
+  {
+    std::cerr << "Too many arguments given." << std::endl;
+    std::exit(EXIT_FAILURE);
+  }
+
   app->activate();
   static_cast<MainWindow*>(app->get_active_window())->show_file(argv[1]);
 
@@ -240,9 +252,7 @@ static int on_command_line(
 int main(int argc, char** argv)
 {
   auto app = Gtk::Application::create(
-    argc,
-    argv,
-    "raulil.github.io.mdview",
+    "pw.rauli.mdview",
     Gio::APPLICATION_HANDLES_COMMAND_LINE |
     Gio::APPLICATION_NON_UNIQUE
   );
@@ -253,5 +263,5 @@ int main(int argc, char** argv)
     false
   );
 
-  return app->run(window);
+  return app->run(window, argc, argv);
 }
