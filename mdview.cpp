@@ -162,7 +162,13 @@ bool MainWindow::on_key_press_event(GdkEventKey* event)
     }
     if (script)
     {
-      webkit_web_view_run_javascript(m_web_view, script, nullptr, nullptr, nullptr);
+      webkit_web_view_run_javascript(
+        m_web_view,
+        script,
+        nullptr,
+        nullptr,
+        nullptr
+      );
 
       return true;
     }
@@ -188,14 +194,22 @@ static gboolean on_decide_policy(WebKitWebView* web_view,
     case WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION:
       {
         auto navigation_decision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
+        auto action = webkit_navigation_policy_decision_get_navigation_action(
+          navigation_decision
+        );
+        auto navigation_type = webkit_navigation_action_get_navigation_type(
+          action
+        );
         const auto uri = webkit_uri_request_get_uri(
-          webkit_navigation_action_get_request(
-            webkit_navigation_policy_decision_get_navigation_action(
-              navigation_decision
-            )
-          )
+          webkit_navigation_action_get_request(action)
         );
 
+        // Do not open content set directly into the web view in external
+        // browser.
+        if (navigation_type == WEBKIT_NAVIGATION_TYPE_OTHER)
+        {
+          break;
+        }
         if (uri)
         {
           gtk_show_uri_on_window(
