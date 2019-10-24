@@ -3,6 +3,21 @@
 GTK application which does nothing but renders [Markdown] document onto the
 screen, using WebKit.
 
+## Usage
+
+If you want display contents of a file called `filename.md`, just type:
+
+```bash
+$ mdview filename.md
+```
+
+If you want to read Markdown document from standard input, use `-` instead of
+filename:
+
+```bash
+$ cat filename.md | mdview -
+```
+
 ## Requirements
 
 - [GTKmm] 3.0
@@ -44,12 +59,6 @@ this:
 
 ```bash
 $ sudo make install
-```
-
-## How to use
-
-```bash
-$ mdview filename.md
 ```
 
 [Markdown]: https://en.wikipedia.org/wiki/Markdown

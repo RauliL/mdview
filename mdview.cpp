@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <fstream>
 #include <iostream>
@@ -258,7 +259,19 @@ static int on_command_line(
   }
 
   app->activate();
-  static_cast<MainWindow*>(app->get_active_window())->show_file(argv[1]);
+  if (!std::strcmp(argv[1], "-"))
+  {
+    std::string input;
+
+    for (std::string line; std::getline(std::cin, line);)
+    {
+      input.append(line);
+      input.append(1, '\n');
+    }
+    static_cast<MainWindow*>(app->get_active_window())->set_markdown(input);
+  } else {
+    static_cast<MainWindow*>(app->get_active_window())->show_file(argv[1]);
+  }
 
   return EXIT_SUCCESS;
 }
