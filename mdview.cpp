@@ -34,6 +34,13 @@ static gboolean on_decide_policy(
   WebKitPolicyDecisionType,
   void*
 );
+static gboolean on_context_menu(
+  WebKitWebView*,
+  WebKitContextMenu*,
+  GdkEvent*,
+  WebKitHitTestResult*,
+  void*
+);
 
 class MainWindow : public Gtk::Window
 {
@@ -64,6 +71,12 @@ MainWindow::MainWindow()
     "decide-policy",
     G_CALLBACK(on_decide_policy),
     static_cast<void*>(gobj())
+  );
+  g_signal_connect(
+    G_OBJECT(m_web_view),
+    "context-menu",
+    G_CALLBACK(on_context_menu),
+    nullptr
   );
 
   set_title("mdview");
@@ -228,6 +241,16 @@ static gboolean on_decide_policy(WebKitWebView* web_view,
       return false;
   }
 
+  return true;
+}
+
+static gboolean on_context_menu(WebKitWebView*,
+                                WebKitContextMenu*,
+                                GdkEvent*,
+                                WebKitHitTestResult*,
+                                void*)
+{
+  // Always disable context menu.
   return true;
 }
 
