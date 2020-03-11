@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Icon=mdview
+Exec=mdview %f
+MimeType=text/markdown
+Terminal=false
+StartupNotify=true
+Categories=GTK;Office;Viewer
+Name=mdview
+GenericName=Markdown viewer
