@@ -28,13 +28,23 @@ namespace MDView
     void show_file(const std::string& path);
     void set_markdown(const std::string& markdown);
     void set_html(const std::string& html);
+    void run_javascript(const gchar* script);
+    void toggle_search_mode();
+    void search(const Glib::ustring& text);
+    void search_next();
+    void search_previous();
 
   private:
     void on_show();
     bool on_key_press_event(GdkEventKey* event);
+    void on_search_mode_enabled_change();
+    void on_search_text_changed();
 
   private:
+    Gtk::Box m_box;
     WebKitWebView* m_web_view;
     Gtk::Widget* m_web_view_widget;
+    Gtk::SearchBar m_search_bar;
+    Gtk::SearchEntry m_search_entry;
   };
 }

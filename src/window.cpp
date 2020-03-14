@@ -40,11 +40,31 @@ namespace MDView
     WebKitHitTestResult*,
     void*
   );
+  static gboolean on_web_view_key_press(
+    WebKitWebView*,
+    GdkEventKey*,
+    Window*
+  );
 
   Window::Window()
-    : m_web_view(WEBKIT_WEB_VIEW(webkit_web_view_new()))
+    : m_box(Gtk::ORIENTATION_VERTICAL)
+    , m_web_view(WEBKIT_WEB_VIEW(webkit_web_view_new()))
     , m_web_view_widget(Glib::wrap(GTK_WIDGET(m_web_view)))
   {
+    set_title("MDView");
+
+    m_box.pack_start(*m_web_view_widget, Gtk::PACK_EXPAND_WIDGET);
+    m_box.pack_start(m_search_bar, Gtk::PACK_SHRINK);
+
+    m_search_bar.add(m_search_entry);
+    m_search_bar.connect_entry(m_search_entry);
+    m_search_bar.set_show_close_button(true);
+
+    add(m_box);
+    set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
+    maximize();
+    show_all();
+
     set_webkit_settings(webkit_web_view_get_settings(m_web_view));
 
     g_signal_connect(
@@ -59,13 +79,23 @@ namespace MDView
       G_CALLBACK(on_context_menu),
       nullptr
     );
+    g_signal_connect(
+      G_OBJECT(m_web_view),
+      "key-press-event",
+      G_CALLBACK(on_web_view_key_press),
+      static_cast<gpointer>(this)
+    );
 
-    set_title("MDView");
-    set_border_width(0);
-    set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
-    add(*m_web_view_widget);
-    maximize();
-    show_all();
+    m_search_bar.property_search_mode_enabled().signal_changed().connect(
+      sigc::mem_fun(
+        this,
+        &Window::on_search_mode_enabled_change
+      )
+    );
+    m_search_entry.signal_search_changed().connect(sigc::mem_fun(
+      this,
+      &Window::on_search_text_changed
+    ));
   }
 
   void
@@ -123,6 +153,58 @@ namespace MDView
   }
 
   void
+  Window::run_javascript(const gchar* script)
+  {
+    webkit_web_view_run_javascript(
+      m_web_view,
+      script,
+      nullptr,
+      nullptr,
+      nullptr
+    );
+  }
+
+  void
+  Window::toggle_search_mode()
+  {
+    m_search_bar.set_search_mode(!m_search_bar.get_search_mode());
+  }
+
+  void
+  Window::search(const Glib::ustring& text)
+  {
+    auto find_controller = webkit_web_view_get_find_controller(m_web_view);
+
+    if (text.empty())
+    {
+      webkit_find_controller_search_finish(find_controller);
+    } else {
+      webkit_find_controller_search(
+        find_controller,
+        text.c_str(),
+        WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE,
+        25
+      );
+    }
+  }
+
+  void
+  Window::search_next()
+  {
+    webkit_find_controller_search_next(
+      webkit_web_view_get_find_controller(m_web_view)
+    );
+  }
+
+  void
+  Window::search_previous()
+  {
+    webkit_find_controller_search_previous(
+      webkit_web_view_get_find_controller(m_web_view)
+    );
+  }
+
+  void
   Window::on_show()
   {
     Gtk::Window::on_show();
@@ -132,49 +214,42 @@ namespace MDView
   bool
   Window::on_key_press_event(GdkEventKey* event)
   {
-    // Terminate the application when user presses ^Q anywhere inside the main
-    // window.
-    if ((event->state & GDK_CONTROL_MASK) && event->keyval == GDK_KEY_q)
+    if ((event->state & GDK_CONTROL_MASK))
     {
-      std::exit(EXIT_SUCCESS);
-    }
-    // Poor man's implementation of Vi keybindings.
-    else if (!(event->state & GDK_SHIFT_MASK) &&
-        !(event->state & GDK_CONTROL_MASK))
-    {
-      const gchar* script = nullptr;
+      // Terminate the application when user presses ^Q anywhere inside the
+      // main window.
+      if (event->keyval == GDK_KEY_q)
+      {
+        std::exit(EXIT_SUCCESS);
 
-      if (event->keyval == GDK_KEY_j)
-      {
-        script = "window.scrollBy({ top: 100 });";
+        return true;
       }
-      else if (event->keyval == GDK_KEY_k)
+      // Activate or disable search bar when user presses ^F anywhere inside
+      // the main window.
+      else if (event->keyval == GDK_KEY_f)
       {
-        script = "window.scrollBy({ top: -100 });";
-      }
-      else if (event->keyval == GDK_KEY_h)
-      {
-        script = "window.scrollBy({ left: -100 });";
-      }
-      else if (event->keyval == GDK_KEY_l)
-      {
-        script = "window.scrollBy({ left: 100 });";
-      }
-      if (script)
-      {
-        webkit_web_view_run_javascript(
-          m_web_view,
-          script,
-          nullptr,
-          nullptr,
-          nullptr
-        );
+        toggle_search_mode();
 
         return true;
       }
     }
 
     return Gtk::Window::on_key_press_event(event);
+  }
+
+  void
+  Window::on_search_mode_enabled_change()
+  {
+    if (!m_search_bar.get_search_mode())
+    {
+      m_web_view_widget->grab_focus();
+    }
+  }
+
+  void
+  Window::on_search_text_changed()
+  {
+    search(m_search_entry.get_text());
   }
 
   static void
@@ -240,6 +315,52 @@ namespace MDView
                   void*)
   {
     // Always disable context menu.
+    return true;
+  }
+
+  static gboolean
+  on_web_view_key_press(WebKitWebView*,
+                        GdkEventKey* event,
+                        Window* window)
+  {
+    if ((event->state & GDK_CONTROL_MASK))
+    {
+      return false;
+    }
+    switch (gdk_keyval_to_unicode(event->keyval))
+    {
+      case 'h':
+        window->run_javascript("window.scrollBy({ left: -100 })");
+        break;
+
+      case 'j':
+        window->run_javascript("window.scrollBy({ top: 100 })");
+        break;
+
+      case 'k':
+        window->run_javascript("window.scrollBy({ top: -100 })");
+        break;
+
+      case 'l':
+        window->run_javascript("window.scrollBy({ left: 100 })");
+        break;
+
+      case 'n':
+        window->search_next();
+        break;
+
+      case 'N':
+        window->search_previous();
+        break;
+
+      case '/':
+        window->toggle_search_mode();
+        break;
+
+      default:
+        return false;
+    }
+
     return true;
   }
 }
