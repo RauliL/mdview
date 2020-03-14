@@ -122,7 +122,7 @@ namespace MDView
     auto renderer = hoedown_html_renderer_new(HOEDOWN_HTML_ESCAPE, 0);
     auto document = hoedown_document_new(
       renderer,
-      HOEDOWN_EXT_FENCED_CODE,
+      static_cast<hoedown_extensions>(HOEDOWN_EXT_BLOCK | HOEDOWN_EXT_SPAN),
       16
     );
     auto mdbuffer = hoedown_buffer_new(16);
