@@ -61,6 +61,19 @@ this:
 $ sudo make install
 ```
 
+## Keyboard shortcuts
+
+| Key      | Action                       |
+| -------- | ---------------------------- |
+| \^F or / | Search                       |
+| \^Q      | Quit                         |
+| h        | Scroll left                  |
+| j        | Scroll down                  |
+| k        | Scroll up                    |
+| l        | Scroll right                 |
+| n        | Go to next search result     |
+| N        | Go to previous search result |
+
 [Markdown]: https://en.wikipedia.org/wiki/Markdown
 [GTKmm]: https://gtkmm.org
 [WebKitGTK2]: https://webkitgtk.org
