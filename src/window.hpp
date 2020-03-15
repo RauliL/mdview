@@ -25,7 +25,8 @@ namespace MDView
   public:
     explicit Window();
 
-    void show_file(const std::string& path);
+    bool open_file_chooser_dialog();
+    bool show_file(const std::string& path);
     void set_markdown(const std::string& markdown);
     void set_html(const std::string& html);
     void run_javascript(const gchar* script);
