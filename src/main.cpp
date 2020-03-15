@@ -51,16 +51,12 @@ on_command_line(
   auto argv = command_line->get_arguments(argc);
   Glib::OptionContext context;
   Glib::OptionGroup gtk_group(gtk_get_option_group(true));
+  MDView::Window* window;
 
   context.add_group(gtk_group);
 
   if (!context.parse(argc, argv))
   {
-    std::exit(EXIT_FAILURE);
-  }
-  else if (argc < 2)
-  {
-    std::cerr << "No filename given." << std::endl;
     std::exit(EXIT_FAILURE);
   }
   else if (argc > 2)
@@ -70,18 +66,29 @@ on_command_line(
   }
 
   app->activate();
-  if (!std::strcmp(argv[1], "-"))
-  {
-    std::string input;
+  window = static_cast<MDView::Window*>(app->get_active_window());
 
-    for (std::string line; std::getline(std::cin, line);)
+  if (argc == 2)
+  {
+    if (!std::strcmp(argv[1], "-"))
     {
-      input.append(line);
-      input.append(1, '\n');
+      std::string input;
+
+      for (std::string line; std::getline(std::cin, line);)
+      {
+        input.append(line);
+        input.append(1, '\n');
+      }
+      window->set_markdown(input);
     }
-    static_cast<MDView::Window*>(app->get_active_window())->set_markdown(input);
-  } else {
-    static_cast<MDView::Window*>(app->get_active_window())->show_file(argv[1]);
+    else if (!window->show_file(argv[1]))
+    {
+      std::exit(EXIT_FAILURE);
+    }
+  }
+  else if (!window->open_file_chooser_dialog())
+  {
+    std::exit(EXIT_SUCCESS);
   }
 
   return EXIT_SUCCESS;

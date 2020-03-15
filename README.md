@@ -66,6 +66,7 @@ $ sudo make install
 | Key      | Action                       |
 | -------- | ---------------------------- |
 | \^F or / | Search                       |
+| \^O      | Open another file            |
 | \^Q      | Quit                         |
 | h        | Scroll left                  |
 | j        | Scroll down                  |

@@ -98,7 +98,41 @@ namespace MDView
     ));
   }
 
-  void
+  bool
+  Window::open_file_chooser_dialog()
+  {
+    auto filter_markdown = Gtk::FileFilter::create();
+    auto filter_any = Gtk::FileFilter::create();
+    Gtk::FileChooserDialog dialog(
+      "Open Markdown file",
+      Gtk::FILE_CHOOSER_ACTION_OPEN
+    );
+    int result;
+
+    dialog.set_transient_for(*this);
+
+    dialog.add_button("_Cancel", Gtk::RESPONSE_CANCEL);
+    dialog.add_button("_Open", Gtk::RESPONSE_OK);
+
+    filter_markdown->set_name("Markdown files");
+    filter_markdown->add_mime_type("text/markdown");
+    filter_markdown->add_pattern("*.md");
+    filter_markdown->add_pattern("*.markdown");
+    dialog.add_filter(filter_markdown);
+
+    filter_any->set_name("Any files");
+    filter_any->add_pattern("*");
+    dialog.add_filter(filter_any);
+
+    if ((dialog.run() == Gtk::RESPONSE_OK))
+    {
+      return show_file(dialog.get_filename());
+    }
+
+    return false;
+  }
+
+  bool
   Window::show_file(const std::string& path)
   {
     std::ifstream input(path);
@@ -107,13 +141,15 @@ namespace MDView
     if (!input.good())
     {
       std::cerr << "Unable to open `" << path << "' for reading." << std::endl;
-      std::exit(EXIT_FAILURE);
-      return;
+
+      return false;
     }
     buffer << input.rdbuf();
     input.close();
     set_markdown(buffer.str());
     set_title(path + " - mdview");
+
+    return true;
   }
 
   void
@@ -229,6 +265,13 @@ namespace MDView
       else if (event->keyval == GDK_KEY_f)
       {
         toggle_search_mode();
+
+        return true;
+      }
+      // Open file dialog when user presses ^O anywhere inside the main window.
+      else if (event->keyval == GDK_KEY_o)
+      {
+        open_file_chooser_dialog();
 
         return true;
       }
