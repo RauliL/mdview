@@ -299,7 +299,9 @@ namespace MDView
   set_webkit_settings(WebKitSettings* settings)
   {
     webkit_settings_set_enable_java(settings, false);
+#if !(WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 32)
     webkit_settings_set_enable_plugins(settings, false);
+#endif
   }
 
   static gboolean
