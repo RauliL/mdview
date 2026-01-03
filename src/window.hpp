@@ -29,7 +29,7 @@ namespace MDView
     bool show_file(const std::string& path);
     void set_markdown(const std::string& markdown);
     void set_html(const std::string& html);
-    void run_javascript(const gchar* script);
+    void run_javascript(const std::string& script);
     void toggle_search_mode();
     void search(const Glib::ustring& text);
     void search_next();

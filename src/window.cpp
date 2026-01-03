@@ -23,8 +23,8 @@
 
 namespace MDView
 {
-  static const int DEFAULT_WIDTH = 640;
-  static const int DEFAULT_HEIGHT = 480;
+  static constexpr int DEFAULT_WIDTH = 640;
+  static constexpr int DEFAULT_HEIGHT = 480;
 
   static void set_webkit_settings(WebKitSettings*);
   static gboolean on_decide_policy(
@@ -189,8 +189,20 @@ namespace MDView
   }
 
   void
-  Window::run_javascript(const gchar* script)
+  Window::run_javascript(const std::string& script)
   {
+#if (WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 40)
+    webkit_web_view_evaluate_javascript(
+      m_web_view,
+      script.c_str(),
+      script.length(),
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr
+    );
+#else
     webkit_web_view_run_javascript(
       m_web_view,
       script,
@@ -198,6 +210,7 @@ namespace MDView
       nullptr,
       nullptr
     );
+#endif
   }
 
   void
@@ -298,7 +311,9 @@ namespace MDView
   static void
   set_webkit_settings(WebKitSettings* settings)
   {
+#if !(WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 38)
     webkit_settings_set_enable_java(settings, false);
+#endif
 #if !(WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 32)
     webkit_settings_set_enable_plugins(settings, false);
 #endif
