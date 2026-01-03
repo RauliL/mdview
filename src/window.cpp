@@ -205,7 +205,7 @@ namespace MDView
 #else
     webkit_web_view_run_javascript(
       m_web_view,
-      script,
+      script.c_str(),
       nullptr,
       nullptr,
       nullptr
