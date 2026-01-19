@@ -21,7 +21,7 @@ $ cat filename.md | mdview -
 ## Requirements
 
 - [GTKmm] 3.0
-- [WebKitGTK2] 4.0
+- [WebKitGTK2] 4.1
 - [hoedown] (included in the repository)
 
 ## How to build
