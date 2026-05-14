@@ -23,13 +23,15 @@
 #include "./window.hpp"
 
 extern const std::array<gchar, 1090404> highlight_js;
-extern const std::array<gchar, 1145> highlight_css;
+extern const std::array<gchar, 1145> highlight_light_css;
+extern const std::array<gchar, 626> highlight_dark_css;
 
 namespace MDView
 {
   static constexpr int DEFAULT_WIDTH = 640;
   static constexpr int DEFAULT_HEIGHT = 480;
 
+  static WebKitUserContentManager* create_user_content_manager();
   static void set_webkit_settings(WebKitSettings*);
   static gboolean on_decide_policy(
     WebKitWebView*,
@@ -49,45 +51,6 @@ namespace MDView
     GdkEventKey*,
     Window*
   );
-
-  static WebKitUserContentManager*
-  create_user_content_manager()
-  {
-    auto manager = webkit_user_content_manager_new();
-
-    webkit_user_content_manager_add_style_sheet(
-      manager,
-      webkit_user_style_sheet_new(
-        highlight_css.data(),
-        WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
-        WEBKIT_USER_STYLE_LEVEL_USER,
-        nullptr,
-        nullptr
-      )
-    );
-    webkit_user_content_manager_add_script(
-      manager,
-      webkit_user_script_new(
-        highlight_js.data(),
-        WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
-        WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START,
-        nullptr,
-        nullptr
-      )
-    );
-    webkit_user_content_manager_add_script(
-      manager,
-      webkit_user_script_new(
-        "hljs.highlightAll();",
-        WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
-        WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_END,
-        nullptr,
-        nullptr
-      )
-    );
-
-    return manager;
-  }
 
   Window::Window()
     : m_box(Gtk::ORIENTATION_VERTICAL)
@@ -350,6 +313,82 @@ namespace MDView
   Window::on_search_text_changed()
   {
     search(m_search_entry.get_text());
+  }
+
+  static inline bool
+  prefers_dark_mode()
+  {
+    const auto settings = Gio::Settings::create("org.gnome.desktop.interface");
+    const auto color_scheme = settings->get_string("color-scheme");
+
+    return (
+      color_scheme == "prefer-dark" ||
+      color_scheme == "force-dark" ||
+      Gtk::Settings::get_default()->property_gtk_application_prefer_dark_theme().get_value()
+    );
+  }
+
+  static WebKitUserContentManager*
+  create_user_content_manager()
+  {
+    auto manager = webkit_user_content_manager_new();
+
+    if (prefers_dark_mode())
+    {
+      webkit_user_content_manager_add_style_sheet(
+        manager,
+        webkit_user_style_sheet_new(
+          ":root { color-scheme: light dark; }",
+          WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+          WEBKIT_USER_STYLE_LEVEL_USER,
+          nullptr,
+          nullptr
+        )
+      );
+      webkit_user_content_manager_add_style_sheet(
+        manager,
+        webkit_user_style_sheet_new(
+          highlight_dark_css.data(),
+          WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+          WEBKIT_USER_STYLE_LEVEL_USER,
+          nullptr,
+          nullptr
+        )
+      );
+    } else {
+      webkit_user_content_manager_add_style_sheet(
+        manager,
+        webkit_user_style_sheet_new(
+          highlight_light_css.data(),
+          WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+          WEBKIT_USER_STYLE_LEVEL_USER,
+          nullptr,
+          nullptr
+        )
+      );
+    }
+    webkit_user_content_manager_add_script(
+      manager,
+      webkit_user_script_new(
+        highlight_js.data(),
+        WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+        WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START,
+        nullptr,
+        nullptr
+      )
+    );
+    webkit_user_content_manager_add_script(
+      manager,
+      webkit_user_script_new(
+        "hljs.highlightAll();",
+        WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+        WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_END,
+        nullptr,
+        nullptr
+      )
+    );
+
+    return manager;
   }
 
   static void
