@@ -33,9 +33,9 @@ in the repository as Git submodules. You can do this with:
 git submodule update --init
 ```
 
-After this you need to install other requirements, as well as C++ compiler and
-[CMake] if you do not have them installed already. On Ubuntu systems this seems
-to do the trick:
+After this you need to install other requirements, as well as C++17 compiler
+and [CMake] if you do not have them installed already. On Ubuntu systems this
+seems to do the trick:
 
 ```bash
 sudo apt install build-essential cmake libwebkit2gtk-4.0-dev libgtkmm-3.0-dev

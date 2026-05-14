@@ -43,6 +43,7 @@ namespace MDView
 
   private:
     Gtk::Box m_box;
+    WebKitUserContentManager* m_manager;
     WebKitWebView* m_web_view;
     Gtk::Widget* m_web_view_widget;
     Gtk::SearchBar m_search_bar;

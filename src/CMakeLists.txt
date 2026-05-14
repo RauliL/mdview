@@ -8,6 +8,7 @@ ENDIF()
 
 ADD_EXECUTABLE(
   mdview
+  ./highlight.cpp
   ./main.cpp
   ./window.cpp
   ../ext/hoedown/src/autolink.c
@@ -24,7 +25,7 @@ ADD_EXECUTABLE(
 TARGET_COMPILE_FEATURES(
   mdview
   PRIVATE
-    cxx_std_11
+    cxx_std_17
 )
 TARGET_INCLUDE_DIRECTORIES(
   mdview

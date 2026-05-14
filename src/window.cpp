@@ -13,6 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include <array>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -20,6 +21,9 @@
 #include "../ext/hoedown/src/html.h"
 
 #include "./window.hpp"
+
+extern const std::array<gchar, 1090404> highlight_js;
+extern const std::array<gchar, 1145> highlight_css;
 
 namespace MDView
 {
@@ -46,9 +50,49 @@ namespace MDView
     Window*
   );
 
+  static WebKitUserContentManager*
+  create_user_content_manager()
+  {
+    auto manager = webkit_user_content_manager_new();
+
+    webkit_user_content_manager_add_style_sheet(
+      manager,
+      webkit_user_style_sheet_new(
+        highlight_css.data(),
+        WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+        WEBKIT_USER_STYLE_LEVEL_USER,
+        nullptr,
+        nullptr
+      )
+    );
+    webkit_user_content_manager_add_script(
+      manager,
+      webkit_user_script_new(
+        highlight_js.data(),
+        WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+        WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START,
+        nullptr,
+        nullptr
+      )
+    );
+    webkit_user_content_manager_add_script(
+      manager,
+      webkit_user_script_new(
+        "hljs.highlightAll();",
+        WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
+        WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_END,
+        nullptr,
+        nullptr
+      )
+    );
+
+    return manager;
+  }
+
   Window::Window()
     : m_box(Gtk::ORIENTATION_VERTICAL)
-    , m_web_view(WEBKIT_WEB_VIEW(webkit_web_view_new()))
+    , m_manager(create_user_content_manager())
+    , m_web_view(WEBKIT_WEB_VIEW(webkit_web_view_new_with_user_content_manager(m_manager)))
     , m_web_view_widget(Glib::wrap(GTK_WIDGET(m_web_view)))
   {
     set_title("MDView");
