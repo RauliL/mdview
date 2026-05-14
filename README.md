@@ -1,7 +1,7 @@
 # mdview
 
 GTK application which does nothing but renders [Markdown] document onto the
-screen, using WebKit.
+screen, using [WebKit]. [highlight.js] is used for code syntax highlighting.
 
 ## Usage
 
@@ -76,6 +76,8 @@ sudo make install
 | N        | Go to previous search result |
 
 [Markdown]: https://en.wikipedia.org/wiki/Markdown
+[WebKit]: https://webkit.org/
+[highlight.js]: https://highlightjs.org/
 [GTKmm]: https://gtkmm.org
 [WebKitGTK2]: https://webkitgtk.org
 [hoedown]: https://github.com/hoedown/hoedown
