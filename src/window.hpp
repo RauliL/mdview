@@ -16,7 +16,7 @@
 #include <string>
 
 #include <gtkmm.h>
-#include <webkit2/webkit2.h>
+#include <webkit/webkit.h>
 
 namespace MDView
 {
@@ -25,7 +25,7 @@ namespace MDView
   public:
     explicit Window();
 
-    bool open_file_chooser_dialog();
+    void open_file_chooser_dialog();
     bool show_file(const std::string& path);
     void set_markdown(const std::string& markdown);
     void set_html(const std::string& html);
@@ -37,13 +37,17 @@ namespace MDView
 
   private:
     void on_show();
-    bool on_key_press_event(GdkEventKey* event);
+    bool on_window_key_pressed(guint keyval, guint, Gdk::ModifierType state);
     void on_search_mode_enabled_change();
     void on_search_text_changed();
+    void on_launch_completed(const Glib::RefPtr<Gio::AsyncResult>& result);
+    void on_file_dialog_finish(
+      const Glib::RefPtr<Gio::AsyncResult>& result,
+      const Glib::RefPtr<Gtk::FileDialog>& dialog
+    );
 
   private:
     Gtk::Box m_box;
-    WebKitUserContentManager* m_manager;
     WebKitWebView* m_web_view;
     Gtk::Widget* m_web_view_widget;
     Gtk::SearchBar m_search_bar;

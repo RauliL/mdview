@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, Rauli Laine
+ * Copyright (c) 2018-2026, Rauli Laine
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,13 +31,12 @@ namespace MDView
   static constexpr int DEFAULT_WIDTH = 640;
   static constexpr int DEFAULT_HEIGHT = 480;
 
-  static WebKitUserContentManager* create_user_content_manager();
-  static void set_webkit_settings(WebKitSettings*);
+  static void add_style_sheets(WebKitUserContentManager* manager);
   static gboolean on_decide_policy(
     WebKitWebView*,
     WebKitPolicyDecision*,
     WebKitPolicyDecisionType,
-    void*
+    Window*
   );
   static gboolean on_context_menu(
     WebKitWebView*,
@@ -53,32 +52,30 @@ namespace MDView
   );
 
   Window::Window()
-    : m_box(Gtk::ORIENTATION_VERTICAL)
-    , m_manager(create_user_content_manager())
-    , m_web_view(WEBKIT_WEB_VIEW(webkit_web_view_new_with_user_content_manager(m_manager)))
+    : m_box(Gtk::Orientation::VERTICAL)
+    , m_web_view(WEBKIT_WEB_VIEW(webkit_web_view_new()))
     , m_web_view_widget(Glib::wrap(GTK_WIDGET(m_web_view)))
   {
+    add_style_sheets(webkit_web_view_get_user_content_manager(m_web_view));
+
     set_title("MDView");
 
-    m_box.pack_start(*m_web_view_widget, Gtk::PACK_EXPAND_WIDGET);
-    m_box.pack_start(m_search_bar, Gtk::PACK_SHRINK);
+    m_box.append(*m_web_view_widget);
+    m_box.append(m_search_bar);
 
     m_search_bar.add(m_search_entry);
     m_search_bar.connect_entry(m_search_entry);
     m_search_bar.set_show_close_button(true);
 
-    add(m_box);
+    set_child(m_box);
     set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
     maximize();
-    show_all();
-
-    set_webkit_settings(webkit_web_view_get_settings(m_web_view));
 
     g_signal_connect(
       G_OBJECT(m_web_view),
       "decide-policy",
       G_CALLBACK(on_decide_policy),
-      static_cast<void*>(gobj())
+      static_cast<gpointer>(this)
     );
     g_signal_connect(
       G_OBJECT(m_web_view),
@@ -95,48 +92,68 @@ namespace MDView
 
     m_search_bar.property_search_mode_enabled().signal_changed().connect(
       sigc::mem_fun(
-        this,
+        *this,
         &Window::on_search_mode_enabled_change
       )
     );
     m_search_entry.signal_search_changed().connect(sigc::mem_fun(
-      this,
+      *this,
       &Window::on_search_text_changed
     ));
   }
 
-  bool
+  void
   Window::open_file_chooser_dialog()
   {
+    auto filter_list = Gio::ListStore<Gtk::FileFilter>::create();
     auto filter_markdown = Gtk::FileFilter::create();
     auto filter_any = Gtk::FileFilter::create();
-    Gtk::FileChooserDialog dialog(
-      "Open Markdown file",
-      Gtk::FILE_CHOOSER_ACTION_OPEN
-    );
+    auto dialog = Gtk::FileChooserDialog::create();
     int result;
 
     dialog.set_transient_for(*this);
 
-    dialog.add_button("_Cancel", Gtk::RESPONSE_CANCEL);
-    dialog.add_button("_Open", Gtk::RESPONSE_OK);
+    dialog.add_button("_Cancel", Gtk::ResponseType::CANCEL);
+    dialog.add_button("_Open", Gtk::ResponseType::OK);
 
     filter_markdown->set_name("Markdown files");
     filter_markdown->add_mime_type("text/markdown");
     filter_markdown->add_pattern("*.md");
     filter_markdown->add_pattern("*.markdown");
-    dialog.add_filter(filter_markdown);
+    filter_list->append(filter_markdown);
 
     filter_any->set_name("Any files");
     filter_any->add_pattern("*");
-    dialog.add_filter(filter_any);
+    filter_list->append(filter_any);
 
-    if ((dialog.run() == Gtk::RESPONSE_OK))
+    dialog->set_filters(filter_list);
+
+    dialog->open(
+      sigc::bind(
+        sigc::mem_fun(*this, &Window::on_file_dialog_finish),
+        dialog
+      )
+    );
+  }
+
+  void
+  Window::on_file_dialog_finish(
+    const Glib::RefPtr<Gio::AsyncResult>& result,
+    const Glib::RefPtr<Gtk::FileDialog>& dialog
+  )
+  {
+    try
     {
-      return show_file(dialog.get_filename());
+      show_file(dialog->open_finish(result)->get_path());
     }
-
-    return false;
+    catch (const Gtk::DialogError&)
+    {
+      std::cerr << "No file selected." << std::endl;
+    }
+    catch (const Glib::Error& e)
+    {
+      std::cerr << "Error: " << e.what() << std::endl;
+    }
   }
 
   bool
@@ -198,7 +215,6 @@ namespace MDView
   void
   Window::run_javascript(const std::string& script)
   {
-#if (WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 40)
     webkit_web_view_evaluate_javascript(
       m_web_view,
       script.c_str(),
@@ -209,15 +225,6 @@ namespace MDView
       nullptr,
       nullptr
     );
-#else
-    webkit_web_view_run_javascript(
-      m_web_view,
-      script.c_str(),
-      nullptr,
-      nullptr,
-      nullptr
-    );
-#endif
   }
 
   void
@@ -268,13 +275,13 @@ namespace MDView
   }
 
   bool
-  Window::on_key_press_event(GdkEventKey* event)
+  Window::on_window_key_pressed(guint keyval, guint dummy, Gdk::ModifierType state)
   {
-    if ((event->state & GDK_CONTROL_MASK))
+    if ((state & Gdk::ModifierType::CONTROL_MASK))
     {
       // Terminate the application when user presses ^Q anywhere inside the
       // main window.
-      if (event->keyval == GDK_KEY_q)
+      if (keyval == GDK_KEY_q)
       {
         std::exit(EXIT_SUCCESS);
 
@@ -282,14 +289,14 @@ namespace MDView
       }
       // Activate or disable search bar when user presses ^F anywhere inside
       // the main window.
-      else if (event->keyval == GDK_KEY_f)
+      else if (keyval == GDK_KEY_f)
       {
         toggle_search_mode();
 
         return true;
       }
       // Open file dialog when user presses ^O anywhere inside the main window.
-      else if (event->keyval == GDK_KEY_o)
+      else if (keyval == GDK_KEY_o)
       {
         open_file_chooser_dialog();
 
@@ -297,7 +304,7 @@ namespace MDView
       }
     }
 
-    return Gtk::Window::on_key_press_event(event);
+    return Gtk::Window::on_window_key_pressed(keyval, dummy, state);
   }
 
   void
@@ -328,11 +335,9 @@ namespace MDView
     );
   }
 
-  static WebKitUserContentManager*
-  create_user_content_manager()
+  static void
+  add_style_sheets(WebKitUserContentManager* manager)
   {
-    auto manager = webkit_user_content_manager_new();
-
     if (prefers_dark_mode())
     {
       webkit_user_content_manager_add_style_sheet(
@@ -387,26 +392,29 @@ namespace MDView
         nullptr
       )
     );
-
-    return manager;
   }
 
   static void
-  set_webkit_settings(WebKitSettings* settings)
+  on_launch_completed(
+    const Glib::RefPtr<Gio::AsyncResult>& result,
+    const Glib::RefPtr<Gtk::UriLauncher>& launcher
+  )
   {
-#if !(WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 38)
-    webkit_settings_set_enable_java(settings, false);
-#endif
-#if !(WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 32)
-    webkit_settings_set_enable_plugins(settings, false);
-#endif
+    try
+    {
+      launcher->launch_finish(result);
+    }
+    catch (const Glib::Error& e)
+    {
+      std::cerr << "Error: " << e.what() << std::endl;
+    }
   }
 
   static gboolean
   on_decide_policy(WebKitWebView* web_view,
                    WebKitPolicyDecision* decision,
                    WebKitPolicyDecisionType decision_type,
-                   void* data)
+                   Window* window)
   {
     switch (decision_type)
     {
@@ -432,12 +440,9 @@ namespace MDView
           }
           if (uri)
           {
-            gtk_show_uri_on_window(
-              static_cast<GtkWindow*>(data),
-              uri,
-              static_cast<guint32>(std::time(nullptr)),
-              nullptr
-            );
+            const auto launcher = Gtk::UriLauncher::create(uri);
+
+            launcher->launch(*window, sigc::ptr_fun(on_launch_completed));
           }
           webkit_policy_decision_ignore(decision);
           break;
