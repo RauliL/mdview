@@ -32,7 +32,6 @@ namespace MDView
   static constexpr int DEFAULT_HEIGHT = 480;
 
   static WebKitUserContentManager* create_user_content_manager();
-  static void set_webkit_settings(WebKitSettings*);
   static gboolean on_decide_policy(
     WebKitWebView*,
     WebKitPolicyDecision*,
@@ -71,8 +70,6 @@ namespace MDView
     set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
     maximize();
     show_all();
-
-    set_webkit_settings(webkit_web_view_get_settings(m_web_view));
 
     g_signal_connect(
       G_OBJECT(m_web_view),
@@ -198,7 +195,6 @@ namespace MDView
   void
   Window::run_javascript(const std::string& script)
   {
-#if (WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 40)
     webkit_web_view_evaluate_javascript(
       m_web_view,
       script.c_str(),
@@ -209,15 +205,6 @@ namespace MDView
       nullptr,
       nullptr
     );
-#else
-    webkit_web_view_run_javascript(
-      m_web_view,
-      script.c_str(),
-      nullptr,
-      nullptr,
-      nullptr
-    );
-#endif
   }
 
   void
@@ -389,17 +376,6 @@ namespace MDView
     );
 
     return manager;
-  }
-
-  static void
-  set_webkit_settings(WebKitSettings* settings)
-  {
-#if !(WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 38)
-    webkit_settings_set_enable_java(settings, false);
-#endif
-#if !(WEBKIT_MAJOR_VERSION >= 2 && WEBKIT_MINOR_VERSION >= 32)
-    webkit_settings_set_enable_plugins(settings, false);
-#endif
   }
 
   static gboolean
