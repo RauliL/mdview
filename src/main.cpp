@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, Rauli Laine
+ * Copyright (c) 2018-2026, Rauli Laine
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,17 +28,16 @@ int main(int argc, char** argv)
 {
   auto app = Gtk::Application::create(
     "dev.rauli.mdview",
-    Gio::APPLICATION_HANDLES_COMMAND_LINE |
-    Gio::APPLICATION_NON_UNIQUE
+    Gio::Application::Flags::HANDLES_COMMAND_LINE |
+    Gio::Application::Flags::NON_UNIQUE
   );
-  MDView::Window window;
 
   app->signal_command_line().connect(
     sigc::bind(sigc::ptr_fun(&on_command_line), app),
     false
   );
 
-  return app->run(window, argc, argv);
+  return app->make_window_and_run<MDView::Window>(argc, argv);
 }
 
 static int
@@ -50,10 +49,7 @@ on_command_line(
   int argc;
   auto argv = command_line->get_arguments(argc);
   Glib::OptionContext context;
-  Glib::OptionGroup gtk_group(gtk_get_option_group(true));
   MDView::Window* window;
-
-  context.add_group(gtk_group);
 
   if (!context.parse(argc, argv))
   {

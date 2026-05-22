@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, Rauli Laine
+ * Copyright (c) 2018-2026, Rauli Laine
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 #include "../ext/hoedown/src/html.h"
 
@@ -26,12 +27,20 @@ extern const std::array<gchar, 1090404> highlight_js;
 extern const std::array<gchar, 1145> highlight_light_css;
 extern const std::array<gchar, 626> highlight_dark_css;
 
+extern "C" void
+mdview_uri_launch_finished(GObject* launcher_obj, GAsyncResult*, gpointer user_data)
+{
+  (void) user_data;
+  g_object_unref(launcher_obj);
+}
+
 namespace MDView
 {
   static constexpr int DEFAULT_WIDTH = 640;
   static constexpr int DEFAULT_HEIGHT = 480;
 
-  static WebKitUserContentManager* create_user_content_manager();
+  static void populate_user_content(WebKitUserContentManager* manager);
+
   static gboolean on_decide_policy(
     WebKitWebView*,
     WebKitPolicyDecision*,
@@ -41,35 +50,39 @@ namespace MDView
   static gboolean on_context_menu(
     WebKitWebView*,
     WebKitContextMenu*,
-    GdkEvent*,
     WebKitHitTestResult*,
     void*
   );
-  static gboolean on_web_view_key_press(
-    WebKitWebView*,
-    GdkEventKey*,
-    Window*
-  );
+
+  static void
+  noop_javascript_finished(GObject*, GAsyncResult*, gpointer)
+  {
+  }
 
   Window::Window()
-    : m_box(Gtk::ORIENTATION_VERTICAL)
-    , m_manager(create_user_content_manager())
-    , m_web_view(WEBKIT_WEB_VIEW(webkit_web_view_new_with_user_content_manager(m_manager)))
+    : m_box(Gtk::Orientation::VERTICAL)
+    , m_web_view(WEBKIT_WEB_VIEW(webkit_web_view_new()))
     , m_web_view_widget(Glib::wrap(GTK_WIDGET(m_web_view)))
   {
+    populate_user_content(
+      webkit_web_view_get_user_content_manager(m_web_view)
+    );
+
     set_title("MDView");
 
-    m_box.pack_start(*m_web_view_widget, Gtk::PACK_EXPAND_WIDGET);
-    m_box.pack_start(m_search_bar, Gtk::PACK_SHRINK);
+    m_web_view_widget->set_hexpand(true);
+    m_web_view_widget->set_vexpand(true);
+    m_box.append(*m_web_view_widget);
+    m_box.append(m_search_bar);
 
-    m_search_bar.add(m_search_entry);
+    m_search_bar.set_child(m_search_entry);
     m_search_bar.connect_entry(m_search_entry);
     m_search_bar.set_show_close_button(true);
+    m_search_bar.set_key_capture_widget(*m_web_view_widget);
 
-    add(m_box);
+    set_child(m_box);
     set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
     maximize();
-    show_all();
 
     g_signal_connect(
       G_OBJECT(m_web_view),
@@ -83,57 +96,96 @@ namespace MDView
       G_CALLBACK(on_context_menu),
       nullptr
     );
-    g_signal_connect(
-      G_OBJECT(m_web_view),
-      "key-press-event",
-      G_CALLBACK(on_web_view_key_press),
-      static_cast<gpointer>(this)
+
+    m_win_key_controller = Gtk::EventControllerKey::create();
+    m_win_key_controller->set_propagation_phase(
+      Gtk::PropagationPhase::CAPTURE
     );
+    m_win_key_controller->signal_key_pressed().connect(
+      sigc::mem_fun(*this, &Window::on_shortcut_keys),
+      false
+    );
+    add_controller(m_win_key_controller);
+
+    m_web_key_controller = Gtk::EventControllerKey::create();
+    m_web_key_controller->signal_key_pressed().connect(
+      sigc::mem_fun(*this, &Window::on_web_keyboard),
+      false
+    );
+    m_web_view_widget->add_controller(m_web_key_controller);
 
     m_search_bar.property_search_mode_enabled().signal_changed().connect(
-      sigc::mem_fun(
-        this,
-        &Window::on_search_mode_enabled_change
-      )
+      sigc::mem_fun(*this, &Window::on_search_mode_enabled_change)
     );
-    m_search_entry.signal_search_changed().connect(sigc::mem_fun(
-      this,
-      &Window::on_search_text_changed
-    ));
+    m_search_entry.signal_search_changed().connect(
+      sigc::mem_fun(*this, &Window::on_search_text_changed)
+    );
+
+    signal_map().connect(
+      sigc::mem_fun(*this, &Window::on_focus_web_view_when_mapped)
+    );
   }
 
   bool
   Window::open_file_chooser_dialog()
   {
+    auto file_dialog = Gtk::FileDialog::create();
     auto filter_markdown = Gtk::FileFilter::create();
     auto filter_any = Gtk::FileFilter::create();
-    Gtk::FileChooserDialog dialog(
-      "Open Markdown file",
-      Gtk::FILE_CHOOSER_ACTION_OPEN
-    );
-    int result;
+    auto filters = Gio::ListStore<Gtk::FileFilter>::create();
+    bool completed = false;
+    bool accepted = false;
+    auto ctx = Glib::MainContext::get_default();
 
-    dialog.set_transient_for(*this);
-
-    dialog.add_button("_Cancel", Gtk::RESPONSE_CANCEL);
-    dialog.add_button("_Open", Gtk::RESPONSE_OK);
+    file_dialog->set_title("Open Markdown file");
 
     filter_markdown->set_name("Markdown files");
     filter_markdown->add_mime_type("text/markdown");
     filter_markdown->add_pattern("*.md");
     filter_markdown->add_pattern("*.markdown");
-    dialog.add_filter(filter_markdown);
 
     filter_any->set_name("Any files");
     filter_any->add_pattern("*");
-    dialog.add_filter(filter_any);
 
-    if ((dialog.run() == Gtk::RESPONSE_OK))
+    filters->append(filter_markdown);
+    filters->append(filter_any);
+    file_dialog->set_filters(filters);
+    file_dialog->set_default_filter(filter_markdown);
+
+    file_dialog->open(
+      *this,
+      [&, file_dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
+        try
+        {
+          auto file = file_dialog->open_finish(result);
+          const auto path = file->get_path();
+
+          accepted = path.empty()
+            ? false
+            : show_file(path);
+        }
+        catch (const Gtk::DialogError& err)
+        {
+          if (
+            err.code() != Gtk::DialogError::Code::DISMISSED &&
+            err.code() != Gtk::DialogError::Code::CANCELLED
+          )
+          {
+            std::cerr << "File dialog: " << err.what() << std::endl;
+          }
+          accepted = false;
+        }
+
+        completed = true;
+      }
+    );
+
+    while (!completed)
     {
-      return show_file(dialog.get_filename());
+      ctx->iteration(true);
     }
 
-    return false;
+    return accepted;
   }
 
   bool
@@ -198,11 +250,11 @@ namespace MDView
     webkit_web_view_evaluate_javascript(
       m_web_view,
       script.c_str(),
-      script.length(),
+      static_cast<gssize>(script.length()),
       nullptr,
       nullptr,
       nullptr,
-      nullptr,
+      noop_javascript_finished,
       nullptr
     );
   }
@@ -221,7 +273,9 @@ namespace MDView
     if (text.empty())
     {
       webkit_find_controller_search_finish(find_controller);
-    } else {
+    }
+    else
+    {
       webkit_find_controller_search(
         find_controller,
         text.c_str(),
@@ -248,43 +302,44 @@ namespace MDView
   }
 
   void
-  Window::on_show()
+  Window::on_focus_web_view_when_mapped()
   {
-    Gtk::Window::on_show();
     m_web_view_widget->grab_focus();
   }
 
   bool
-  Window::on_key_press_event(GdkEventKey* event)
+  Window::on_shortcut_keys(
+    guint keyval,
+    guint,
+    Gdk::ModifierType state
+  )
   {
-    if ((event->state & GDK_CONTROL_MASK))
+    if (
+      (state & Gdk::ModifierType::CONTROL_MASK) !=
+      Gdk::ModifierType::CONTROL_MASK
+    )
     {
-      // Terminate the application when user presses ^Q anywhere inside the
-      // main window.
-      if (event->keyval == GDK_KEY_q)
-      {
-        std::exit(EXIT_SUCCESS);
-
-        return true;
-      }
-      // Activate or disable search bar when user presses ^F anywhere inside
-      // the main window.
-      else if (event->keyval == GDK_KEY_f)
-      {
-        toggle_search_mode();
-
-        return true;
-      }
-      // Open file dialog when user presses ^O anywhere inside the main window.
-      else if (event->keyval == GDK_KEY_o)
-      {
-        open_file_chooser_dialog();
-
-        return true;
-      }
+      return false;
     }
 
-    return Gtk::Window::on_key_press_event(event);
+    if (keyval == GDK_KEY_q)
+    {
+      std::exit(EXIT_SUCCESS);
+    }
+
+    if (keyval == GDK_KEY_f)
+    {
+      toggle_search_mode();
+      return true;
+    }
+
+    if (keyval == GDK_KEY_o)
+    {
+      open_file_chooser_dialog();
+      return true;
+    }
+
+    return false;
   }
 
   void
@@ -302,6 +357,56 @@ namespace MDView
     search(m_search_entry.get_text());
   }
 
+  bool
+  Window::on_web_keyboard(
+    guint keyval,
+    guint,
+    Gdk::ModifierType state
+  )
+  {
+    if ((state & Gdk::ModifierType::CONTROL_MASK) !=
+        Gdk::ModifierType::CONTROL_MASK)
+    {
+      switch (gdk_keyval_to_unicode(keyval))
+      {
+      case 'h':
+        run_javascript("window.scrollBy({ left: -100 })");
+        break;
+
+      case 'j':
+        run_javascript("window.scrollBy({ top: 100 })");
+        break;
+
+      case 'k':
+        run_javascript("window.scrollBy({ top: -100 })");
+        break;
+
+      case 'l':
+        run_javascript("window.scrollBy({ left: 100 })");
+        break;
+
+      case 'n':
+        search_next();
+        break;
+
+      case 'N':
+        search_previous();
+        break;
+
+      case '/':
+        toggle_search_mode();
+        break;
+
+      default:
+        return false;
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
   static inline bool
   prefers_dark_mode()
   {
@@ -311,15 +416,14 @@ namespace MDView
     return (
       color_scheme == "prefer-dark" ||
       color_scheme == "force-dark" ||
-      Gtk::Settings::get_default()->property_gtk_application_prefer_dark_theme().get_value()
+      Gtk::Settings::get_default()->property_gtk_application_prefer_dark_theme()
+        .get_value()
     );
   }
 
-  static WebKitUserContentManager*
-  create_user_content_manager()
+  static void
+  populate_user_content(WebKitUserContentManager* manager)
   {
-    auto manager = webkit_user_content_manager_new();
-
     if (prefers_dark_mode())
     {
       webkit_user_content_manager_add_style_sheet(
@@ -374,112 +478,63 @@ namespace MDView
         nullptr
       )
     );
-
-    return manager;
   }
 
   static gboolean
-  on_decide_policy(WebKitWebView* web_view,
-                   WebKitPolicyDecision* decision,
-                   WebKitPolicyDecisionType decision_type,
-                   void* data)
+  on_decide_policy(
+    WebKitWebView*,
+    WebKitPolicyDecision* decision,
+    WebKitPolicyDecisionType decision_type,
+    void* data
+  )
   {
     switch (decision_type)
     {
-      case WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION:
-      case WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION:
-        {
-          auto navigation_decision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
-          auto action = webkit_navigation_policy_decision_get_navigation_action(
-            navigation_decision
-          );
-          auto navigation_type = webkit_navigation_action_get_navigation_type(
-            action
-          );
-          const auto uri = webkit_uri_request_get_uri(
-            webkit_navigation_action_get_request(action)
-          );
+    case WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION:
+    case WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION:
+      {
+        auto navigation_decision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
+        auto action =
+          webkit_navigation_policy_decision_get_navigation_action(navigation_decision);
+        auto navigation_type = webkit_navigation_action_get_navigation_type(action);
+        const auto uri = webkit_uri_request_get_uri(
+          webkit_navigation_action_get_request(action)
+        );
 
-          // Do not open content set directly into the web view in external
-          // browser.
-          if (navigation_type == WEBKIT_NAVIGATION_TYPE_OTHER)
-          {
-            break;
-          }
-          if (uri)
-          {
-            gtk_show_uri_on_window(
-              static_cast<GtkWindow*>(data),
-              uri,
-              static_cast<guint32>(std::time(nullptr)),
-              nullptr
-            );
-          }
-          webkit_policy_decision_ignore(decision);
+        if (navigation_type == WEBKIT_NAVIGATION_TYPE_OTHER)
+        {
           break;
         }
 
-      default:
-        return false;
-    }
+        if (uri)
+        {
+          GtkUriLauncher* launcher = gtk_uri_launcher_new(uri);
+          gtk_uri_launcher_launch(
+            launcher,
+            static_cast<GtkWindow*>(data),
+            nullptr,
+            mdview_uri_launch_finished,
+            nullptr
+          );
+        }
+        webkit_policy_decision_ignore(decision);
+        break;
+      }
 
-    return true;
-  }
-
-  static gboolean
-  on_context_menu(WebKitWebView*,
-                  WebKitContextMenu*,
-                  GdkEvent*,
-                  WebKitHitTestResult*,
-                  void*)
-  {
-    // Always disable context menu.
-    return true;
-  }
-
-  static gboolean
-  on_web_view_key_press(WebKitWebView*,
-                        GdkEventKey* event,
-                        Window* window)
-  {
-    if ((event->state & GDK_CONTROL_MASK))
-    {
+    default:
       return false;
     }
-    switch (gdk_keyval_to_unicode(event->keyval))
-    {
-      case 'h':
-        window->run_javascript("window.scrollBy({ left: -100 })");
-        break;
 
-      case 'j':
-        window->run_javascript("window.scrollBy({ top: 100 })");
-        break;
+    return true;
+  }
 
-      case 'k':
-        window->run_javascript("window.scrollBy({ top: -100 })");
-        break;
-
-      case 'l':
-        window->run_javascript("window.scrollBy({ left: 100 })");
-        break;
-
-      case 'n':
-        window->search_next();
-        break;
-
-      case 'N':
-        window->search_previous();
-        break;
-
-      case '/':
-        window->toggle_search_mode();
-        break;
-
-      default:
-        return false;
-    }
-
+  static gboolean
+  on_context_menu(
+    WebKitWebView*,
+    WebKitContextMenu*,
+    WebKitHitTestResult*,
+    void*)
+  {
     return true;
   }
 }
