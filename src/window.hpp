@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, Rauli Laine
+ * Copyright (c) 2018-2026, Rauli Laine
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,8 +15,9 @@
  */
 #include <string>
 
+#include <glibmm/refptr.h>
 #include <gtkmm.h>
-#include <webkit2/webkit2.h>
+#include <webkit/webkit.h>
 
 namespace MDView
 {
@@ -36,17 +37,20 @@ namespace MDView
     void search_previous();
 
   private:
-    void on_show();
-    bool on_key_press_event(GdkEventKey* event);
+    void on_focus_web_view_when_mapped();
+    bool on_shortcut_keys(guint keyval, guint keycode, Gdk::ModifierType state);
+    bool on_web_keyboard(guint keyval, guint keycode, Gdk::ModifierType state);
+
     void on_search_mode_enabled_change();
     void on_search_text_changed();
 
   private:
     Gtk::Box m_box;
-    WebKitUserContentManager* m_manager;
     WebKitWebView* m_web_view;
     Gtk::Widget* m_web_view_widget;
     Gtk::SearchBar m_search_bar;
     Gtk::SearchEntry m_search_entry;
+    Glib::RefPtr<Gtk::EventControllerKey> m_win_key_controller;
+    Glib::RefPtr<Gtk::EventControllerKey> m_web_key_controller;
   };
 }

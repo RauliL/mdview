@@ -20,8 +20,8 @@ cat filename.md | mdview -
 
 ## Requirements
 
-- [GTKmm] 3.0
-- [WebKitGTK2] 4.1
+- [GTKmm] 4.0
+- [WebKitGTK] 6.0
 - [hoedown] (included in the repository)
 
 ## How to build
@@ -38,7 +38,7 @@ and [CMake] if you do not have them installed already. On Ubuntu systems this
 seems to do the trick:
 
 ```bash
-sudo apt install build-essential cmake libwebkit2gtk-4.0-dev libgtkmm-3.0-dev
+sudo apt install build-essential cmake libwebkitgtk-6.0-dev libgtkmm-4.0-dev
 ```
 
 Then you can proceed to compile the actual executable. This can be done with:
@@ -79,6 +79,6 @@ sudo make install
 [WebKit]: https://webkit.org/
 [highlight.js]: https://highlightjs.org/
 [GTKmm]: https://gtkmm.org
-[WebKitGTK2]: https://webkitgtk.org
+[WebKitGTK]: https://webkitgtk.org
 [hoedown]: https://github.com/hoedown/hoedown
 [CMake]: https://cmake.org
