@@ -19,7 +19,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "../ext/hoedown/src/html.h"
+#include <maddy/parser.h>
 
 #include "./window.hpp"
 
@@ -211,31 +211,11 @@ namespace MDView
   void
   Window::set_markdown(const std::string& markdown)
   {
-    auto renderer = hoedown_html_renderer_new(HOEDOWN_HTML_ESCAPE, 0);
-    auto document = hoedown_document_new(
-      renderer,
-      static_cast<hoedown_extensions>(HOEDOWN_EXT_BLOCK | HOEDOWN_EXT_SPAN),
-      16
-    );
-    auto mdbuffer = hoedown_buffer_new(16);
-    std::string result;
+    std::stringstream input(markdown);
+    const auto config = std::make_shared<maddy::ParserConfig>();
 
-    hoedown_document_render(
-      document,
-      mdbuffer,
-      reinterpret_cast<const uint8_t*>(markdown.c_str()),
-      markdown.length()
-    );
-    result.assign(
-      reinterpret_cast<const char*>(mdbuffer->data),
-      mdbuffer->size
-    );
-
-    hoedown_buffer_free(mdbuffer);
-    hoedown_document_free(document);
-    hoedown_html_renderer_free(renderer);
-
-    set_html(result);
+    config->enabledParsers = maddy::types::ALL;
+    set_html(maddy::Parser(config).Parse(input));
   }
 
   void

@@ -1,50 +1,52 @@
-FIND_PACKAGE(PkgConfig)
+find_package(PkgConfig)
 
-PKG_CHECK_MODULES(GTKMM gtkmm-4.0 REQUIRED)
-PKG_CHECK_MODULES(WEBKITGTK webkitgtk-6.0 REQUIRED)
+include(FetchContent)
 
-ADD_EXECUTABLE(
+pkg_check_modules(GTKMM gtkmm-4.0 REQUIRED)
+pkg_check_modules(WEBKITGTK webkitgtk-6.0 REQUIRED)
+
+fetchcontent_declare(
+  maddy
+  URL https://github.com/progsource/maddy/releases/download/1.5.0/maddy-src.zip
+  URL_HASH SHA256=eae8990ab796185547ef06dbb752d0d7cbc38067b327a4c7e5141c280aa633fd
+)
+fetchcontent_makeavailable(maddy)
+
+add_executable(
   mdview
   ./highlight.cpp
   ./main.cpp
   ./window.cpp
-  ../ext/hoedown/src/autolink.c
-  ../ext/hoedown/src/buffer.c
-  ../ext/hoedown/src/document.c
-  ../ext/hoedown/src/escape.c
-  ../ext/hoedown/src/html.c
-  ../ext/hoedown/src/html_blocks.c
-  ../ext/hoedown/src/html_smartypants.c
-  ../ext/hoedown/src/stack.c
-  ../ext/hoedown/src/version.c
 )
 
-TARGET_COMPILE_FEATURES(
+target_compile_features(
   mdview
   PRIVATE
     cxx_std_17
 )
-TARGET_INCLUDE_DIRECTORIES(
+target_include_directories(
   mdview
   PRIVATE
     ${GTKMM_INCLUDE_DIRS}
     ${WEBKITGTK_INCLUDE_DIRS}
 )
-TARGET_LINK_LIBRARIES(
+target_link_libraries(
   mdview
-  ${GTKMM_LIBRARIES}
-  ${WEBKITGTK_LIBRARIES}
+  PUBLIC
+    ${GTKMM_LIBRARIES}
+    ${WEBKITGTK_LIBRARIES}
+    maddy
 )
 
-INSTALL(
+install(
   TARGETS
     mdview
   RUNTIME DESTINATION
     bin
 )
-INSTALL(
+install(
   FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/../mdview.desktop
+    ../mdview.desktop
   DESTINATION
     share/applications
 )
