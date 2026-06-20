@@ -1,9 +1,9 @@
-FIND_PACKAGE(PkgConfig)
+find_package(PkgConfig)
 
-PKG_CHECK_MODULES(GTKMM gtkmm-4.0 REQUIRED)
-PKG_CHECK_MODULES(WEBKITGTK webkitgtk-6.0 REQUIRED)
+pkg_check_modules(GTKMM gtkmm-4.0 REQUIRED)
+pkg_check_modules(WEBKITGTK webkitgtk-6.0 REQUIRED)
 
-ADD_EXECUTABLE(
+add_executable(
   mdview
   ./highlight.cpp
   ./main.cpp
@@ -19,30 +19,30 @@ ADD_EXECUTABLE(
   ../ext/hoedown/src/version.c
 )
 
-TARGET_COMPILE_FEATURES(
+target_compile_features(
   mdview
   PRIVATE
     cxx_std_17
 )
-TARGET_INCLUDE_DIRECTORIES(
+target_include_directories(
   mdview
   PRIVATE
     ${GTKMM_INCLUDE_DIRS}
     ${WEBKITGTK_INCLUDE_DIRS}
 )
-TARGET_LINK_LIBRARIES(
+target_link_libraries(
   mdview
   ${GTKMM_LIBRARIES}
   ${WEBKITGTK_LIBRARIES}
 )
 
-INSTALL(
+install(
   TARGETS
     mdview
   RUNTIME DESTINATION
     bin
 )
-INSTALL(
+install(
   FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/../mdview.desktop
   DESTINATION

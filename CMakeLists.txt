@@ -1,5 +1,5 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 4.2)
-PROJECT(mdview C CXX)
+cmake_minimum_required(VERSION 4.2)
+project(mdview C CXX)
 
-ADD_SUBDIRECTORY(src)
-ADD_SUBDIRECTORY(icons)
+add_subdirectory(src)
+add_subdirectory(icons)
